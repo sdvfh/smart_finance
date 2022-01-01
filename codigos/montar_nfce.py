@@ -67,4 +67,10 @@ formas_pagamento = pd.DataFrame(itens_pagamento)
 
 del lista_formas_pagamentos, item, item_pagamento, itens_pagamento
 
+# %% falta
+totais = pd.DataFrame([resposta1['nfeProc']['proc']['nfeProc']['NFe']['infNFe']['total']['ICMSTot']])
+tp_frete = pd.DataFrame([resposta1['nfeProc']['proc']['nfeProc']['NFe']['infNFe']['transp']])
+qr_code = pd.DataFrame([resposta1['nfeProc']['proc']['nfeProc']['NFe']['infNFeSupl']])
+codigos_extras = pd.DataFrame([resposta1['nfeProc']['proc']['nfeProc']['protNFe']['infProt']])
+
 
