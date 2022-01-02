@@ -1,19 +1,29 @@
+import shutil
 import numpy as np
 import pandas as pd
-
+from pandas.tseries.offsets import DateOffset
 
 # %% definição de funções
+caminho = lambda data: f'/home/sergio/Documentos/repositorios/casa_inteligente/contas_casa/contas_{data}.xlsx'
+
+
 def calcular_despesas(df):
     checar_valores = lambda x: True if isinstance(x, int) or (isinstance(x, float) and not np.isnan(x)) else False
     itens_com_valores = pd.concat([df[pessoa].map(checar_valores) for pessoa in pessoas], axis=1).any(axis=1)
     df.loc[df['Fonte'].isnull(), 'Fonte'] = df.loc[df['Fonte'].isnull(), 'Nome']
     df.loc[itens_com_valores, pessoas] = df.loc[itens_com_valores, pessoas].fillna(0)
     df.loc[~itens_com_valores, pessoas] = df.loc[~itens_com_valores, pessoas].fillna('E')
+
     for i, linha in df.iterrows():
         pessoas_para_receber = (linha[pessoas] == 'R').sum()
         pessoas_para_enviar = (linha[pessoas] == 'E').sum()
         qtd_pessoas = pessoas_para_receber + pessoas_para_enviar
         if qtd_pessoas == 0:
+            soma_pessoas = np.round(linha[pessoas].sum(), 2)
+            divisao_correta = (linha['Fonte'] in boletos and soma_pessoas == linha['Valor']) or (soma_pessoas == 0)
+            if not divisao_correta:
+                raise ValueError(
+                    f'Despesa "{linha["Nome"]}", linha {i + 2}, com valores discrepantes entre o total e o dividido.')
             continue
         valor_por_pessoa = linha['Valor'] / qtd_pessoas
         if pessoas_para_receber > 0:
@@ -34,7 +44,7 @@ def calcular_despesas(df):
 
 # %% definições de variáveis
 data = '22_01'
-arquivo = f'/home/sergio/Documentos/repositorios/casa_inteligente/contas_casa/contas_{data}.xlsx'
+arquivo = caminho(data)
 fixos = [['Ana', ['dízimo']],
          ['Camilla', ['oi fibra', 'unimed']],
          ['Sérgio', ['netflix']]]
@@ -99,3 +109,21 @@ for pessoa in pessoas:
     print('Diferença:', diferenca.round(2))
 
 del pessoa, diferenca, i, linha, valor, boletos, pessoas
+
+# %% Gerar a planilha para o próximo mês, contando apenas com os itens parcelados e fixos
+data = data.split('_')
+data = pd.Timestamp(year=2000 + int(data[0]), month=int(data[1]), day=1)
+data += DateOffset(months=1)
+data = data.strftime('%y_%m')
+arquivo_futuro = caminho(data)
+shutil.copyfile(arquivo, arquivo_futuro)
+
+df_itens = pd.read_excel(arquivo_futuro, sheet_name='itens')
+df_contas = pd.read_excel(arquivo_futuro, sheet_name='contas')
+df_itens['Parcelas'] -= 1
+df_itens = df_itens[df_itens['Parcelas'].notnull() & df_itens['Parcelas'] != 0]
+df_itens.loc[df_itens['Parcelas'] < 0, 'Parcelas'] = -1
+
+with pd.ExcelWriter(arquivo_futuro) as writer:
+    df_itens.to_excel(writer, sheet_name='itens', index=False)
+    df_contas.to_excel(writer, sheet_name='contas', index=False)
