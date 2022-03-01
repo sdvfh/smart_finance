@@ -3,15 +3,15 @@ import requests
 import xmltodict
 from pymongo import MongoClient
 
-DIRETORIO = '/home/sergio/Documentos/repositorios/casa_inteligente/nfce/historico.csv'
+DIRETORIO = '/home/sergio/Documentos/repositorios/casa_inteligente/nfce/historico.txt'
 URI = 'mongodb://localhost'
-lista_nfce = pd.read_csv(DIRETORIO)
+lista_nfce = pd.read_csv(DIRETORIO, header=None)
 cliente = MongoClient(URI)
 nfce = cliente['nfce']
 enderecos = nfce['enderecos']
 
 # %%
-for i, nota in enumerate(lista_nfce['endereco_nfce']):
+for i, nota in enumerate(lista_nfce[0]):
     if 'http' in nota:
         req = nota
     else:
