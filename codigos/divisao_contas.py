@@ -43,11 +43,11 @@ def calcular_despesas(df):
 
 
 # %% definições de variáveis
-data = '22_01'
+data = '22_03'
 arquivo = caminho(data)
-fixos = [['Ana', ['dízimo']],
-         ['Camilla', ['oi fibra', 'unimed']],
-         ['Sérgio', ['netflix']]]
+fixos = [['Ana', ['dízimo'], -1100],
+         ['Camilla', ['oi fibra', 'unimed'], 1100],
+         ['Sérgio', ['netflix'], 1271.55]]
 boletos = ['hiper', 'itaú', 'marisa']
 
 # %% cálculo das despesas
@@ -63,8 +63,48 @@ valores_por_pessoa = df_detalhado[pessoas].sum().sort_values()
 df_pagamentos = df_detalhado[df_detalhado['Fonte'].isin(boletos)].groupby('Fonte').sum()[['Valor'] + pessoas]
 df_pagamentos = df_pagamentos.reset_index().sort_values('Valor')
 
-assert valores_por_pessoa.sum().round(2) == df_pagamentos['Valor'].sum().round(2), \
-    'Os valores por pessoa e os boletos NÃO batem. Favor, corrigir.'
+diff = np.abs(np.round(valores_por_pessoa.sum().round(2) - df_pagamentos["Valor"].sum().round(2), 2))
+assert diff == 0, f'Os valores por pessoa e os boletos NÃO batem. A diferença é de {diff}. Favor, corrigir.'
+
+# %% Distribuição dos boletos
+boletos_pagamento = dict()
+df_pagamentos_tmp = df_pagamentos.copy()
+
+for pessoa, boletos, _ in fixos:
+    boletos_pagamento.update({pessoa: df_pagamentos_tmp.loc[df_pagamentos_tmp['Fonte'].isin(boletos),
+                                                            ['Fonte', 'Valor']]})
+    df_pagamentos_tmp = df_pagamentos_tmp[~df_pagamentos_tmp['Fonte'].isin(boletos)]
+
+
+for pessoa in pessoas:
+    drop_indexes = list()
+    for i, linha in df_pagamentos_tmp.iterrows():
+        if ((boletos_pagamento[pessoa]['Valor'].sum() + linha['Valor'] <= valores_por_pessoa[pessoa])
+                or pessoa == pessoas[-1]):
+            boletos_pagamento[pessoa] = boletos_pagamento[pessoa].append(linha[['Fonte', 'Valor']])
+            drop_indexes.append(i)
+        else:
+            break
+    df_pagamentos_tmp = df_pagamentos_tmp.drop(index=drop_indexes)
+del df_pagamentos_tmp
+
+valor = 0
+for pessoa in pessoas:
+    valor += boletos_pagamento[pessoa]['Valor'].sum()
+diff = np.round(np.abs(np.round(valor, 2) - valores_por_pessoa.sum().round(2)), 2)
+
+assert diff == 0, f'Os valores de cada pessoa e o valor total NÃO batem. A diferença é de {diff}. Favor, corrigir.'
+
+for pessoa, boletos, outras_despesas in fixos:
+    diferenca = valores_por_pessoa[pessoa] - boletos_pagamento[pessoa]['Valor'].sum()
+    print('\n')
+    print(f'-------- {pessoa} --------')
+    print('Despesa real: ', np.round(valores_por_pessoa[pessoa].round(2) - outras_despesas, 2))
+    print('Despesa atual: ', valores_por_pessoa[pessoa].round(2))
+    print(boletos_pagamento[pessoa].sort_values('Valor').reset_index(drop=True))
+    print('Para transferir:', diferenca.round(2))
+
+del pessoa, diferenca, i, linha, valor, boletos
 
 # %% geração do relatório
 df_exportar = df_detalhado[['Nome', 'Valor'] + pessoas].copy()
@@ -73,42 +113,7 @@ total = df_exportar.sum()
 total['Nome'] = 'Total'
 df_exportar = df_exportar.append(total, ignore_index=True)
 df_exportar.to_excel(arquivo[:-5] + '_relatorio.xlsx', index=False)
-del total, df_exportar
-
-# %% Distribuição dos boletos
-boletos_pagamento = dict()
-df_pagamentos_tmp = df_pagamentos.copy()
-
-for pessoa, boletos in fixos:
-    boletos_pagamento.update({pessoa: df_pagamentos_tmp.loc[df_pagamentos_tmp['Fonte'].isin(boletos),
-                                                            ['Fonte', 'Valor']]})
-    df_pagamentos_tmp = df_pagamentos_tmp[~df_pagamentos_tmp['Fonte'].isin(boletos)]
-
-for pessoa in pessoas:
-    for i, linha in df_pagamentos_tmp.iterrows():
-        if boletos_pagamento[pessoa]['Valor'].sum() + linha['Valor'] <= valores_por_pessoa[pessoa]:
-            boletos_pagamento[pessoa] = boletos_pagamento[pessoa].append(linha[['Fonte', 'Valor']])
-            df_pagamentos_tmp = df_pagamentos_tmp.drop(index=i)
-        else:
-            break
-del df_pagamentos_tmp
-
-valor = 0
-for pessoa in pessoas:
-    valor += boletos_pagamento[pessoa]['Valor'].sum()
-
-assert np.round(valor, 2) == valores_por_pessoa.sum().round(2), \
-    'Os valores de cada pessoa e o valor total NÃO batem. Favor, corrigir.'
-
-for pessoa in pessoas:
-    diferenca = valores_por_pessoa[pessoa] - boletos_pagamento[pessoa]['Valor'].sum()
-    print('\n')
-    print(f'-------- {pessoa} --------')
-    print('Despesa: ', valores_por_pessoa[pessoa].round(2))
-    print(boletos_pagamento[pessoa])
-    print('Diferença:', diferenca.round(2))
-
-del pessoa, diferenca, i, linha, valor, boletos, pessoas
+del total, df_exportar, pessoas
 
 # %% Gerar a planilha para o próximo mês, contando apenas com os itens parcelados e fixos
 data = data.split('_')
