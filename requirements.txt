@@ -1,5 +1,4 @@
-numpy==1.23.0
+numpy==1.24.1
 openpyxl==3.0.10
-pandas==1.4.3
-plotly==5.8.2
-pre-commit==2.19.0
+pandas==1.5.2
+pre-commit==2.21.0
